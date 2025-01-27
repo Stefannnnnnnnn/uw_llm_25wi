@@ -26,7 +26,7 @@ from sentence_transformers import SentenceTransformer
 import matplotlib.pyplot as plt
 import math
 
-
+import re
 
 ### Some predefined utility functions for you to load the text embeddings
 
@@ -245,7 +245,7 @@ def cosine_similarity(x, y):
     (20 pts)
     """
     ##################################
-    ### TODO: Add code here ##########
+    ### TODO: Add code here ########## (Daniel Chen)
     ##################################
     pass
     
@@ -262,8 +262,13 @@ def averaged_glove_embeddings_gdrive(sentence, word_index_dict, embeddings, mode
     """
     embedding = np.zeros(int(model_type.split("d")[0]))
     ##################################
-    ##### TODO: Add code here ########
+    ##### TODO: Add code here ######## (Tianyi Li: Done on 01/26/2025)
     ##################################
+    words = re.findall(r'[@#!?]?\w+', sentence.lower())
+    for word in words:
+        embedding += get_glove_embeddings(word, word_index_dict, embeddings, model_type)
+    embedding /= len(words)
+    return embedding
 
 
 # Task III: Sort the cosine similarity
@@ -290,8 +295,11 @@ def get_sorted_cosine_similarity(embeddings_metadata):
                                                             embeddings, model_type)
         
         ##########################################
-        ## TODO: Get embeddings for categories ###
+        ## TODO: Get embeddings for categories ### (Tianyi Li: Done on 01/26/2025)
         ##########################################
+        category_embeddings = {}
+        for category in categories:
+            category_embeddings[category] = get_glove_embeddings(category, word_index_dict, embeddings, model_type)
 
     else:
         model_name = embeddings_metadata["model_name"]
@@ -305,13 +313,18 @@ def get_sorted_cosine_similarity(embeddings_metadata):
             input_embedding = get_sentence_transformer_embeddings(st.session_state.text_search, model_name=model_name)
         else:
             input_embedding = get_sentence_transformer_embeddings(st.session_state.text_search)
-        for index in range(len(categories)):
-            pass
-            ##########################################
-            # TODO: Compute cosine similarity between input sentence and categories
-            # TODO: Update category embeddings if category not found  
-            ##########################################
 
+    # Both Glove and transformer methods need to compute cosine similarity
+    for index in range(len(categories)):
+        pass
+        ##########################################
+        # TODO: Compute cosine similarity between input sentence and categories (Daniel Chen)
+        # Use input_embedding and category_embeddings(which is loaded from session_state)
+        # TODO: Update category embeddings if category not found (Daniel Chen)
+        # Coz category_embeddings loaded from session_state, categories[index] may not in category_embeddings, update it
+        ##########################################
+
+    # TODO: Sort similarity (Tianyi Li)
     return 
 
 
@@ -325,8 +338,8 @@ if __name__ == "__main__":
     st.sidebar.title("GloVe Twitter")
     st.sidebar.markdown(
         """
-    GloVe is an unsupervised learning algorithm for obtaining vector representations for words. Pretrained on 
-    2 billion tweets with vocabulary size of 1.2 million. Download from [Stanford NLP](http://nlp.stanford.edu/data/glove.twitter.27B.zip). 
+    GloVe is an unsupervised learning algorithm for obtaining vector representations for words. Pretrained on
+    2 billion tweets with vocabulary size of 1.2 million. Download from [Stanford NLP](http://nlp.stanford.edu/data/glove.twitter.27B.zip).
 
     Jeffrey Pennington, Richard Socher, and Christopher D. Manning. 2014. *GloVe: Global Vectors for Word Representation*.
     """
