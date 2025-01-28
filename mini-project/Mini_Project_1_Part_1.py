@@ -170,7 +170,7 @@ def plot_piechart_helper(sorted_cosine_scores_items):
     )
     categories = st.session_state.categories.split(" ")
     categories_sorted = [
-        categories[sorted_cosine_scores_items[index][0]]
+        sorted_cosine_scores_items[index][0]
         for index in range(len(sorted_cosine_scores_items))
     ]
     fig, ax = plt.subplots(figsize=(3, 3))
@@ -333,7 +333,10 @@ def get_sorted_cosine_similarity(embeddings_metadata):
     for category in categories:
         if category not in category_embeddings:
             update_category_embeddings(embeddings_metadata)
+    if embeddings_metadata["embedding_model"] != "glove":
+        category_embeddings = st.session_state["cat_embed_" + model_name]
 
+    for category in categories:
         cosine_sim[category] = cosine_similarity(input_embedding, category_embeddings[category])
 
     # TODO: Sort similarity (Daniel Chen: Done on 01/27/2025)
@@ -414,7 +417,7 @@ if __name__ == "__main__":
         }
         with st.spinner("Obtaining Cosine similarity for Glove..."):
             sorted_cosine_sim_glove = get_sorted_cosine_similarity(
-                st.session_state.text_search, embeddings_metadata
+                embeddings_metadata
             )
 
         # Sentence transformer embeddings
@@ -422,7 +425,7 @@ if __name__ == "__main__":
         embeddings_metadata = {"embedding_model": "transformers", "model_name": ""}
         with st.spinner("Obtaining Cosine similarity for 384d sentence transformer..."):
             sorted_cosine_sim_transformer = get_sorted_cosine_similarity(
-                st.session_state.text_search, embeddings_metadata
+                embeddings_metadata
             )
 
         # Results and Plot Pie Chart for Glove
