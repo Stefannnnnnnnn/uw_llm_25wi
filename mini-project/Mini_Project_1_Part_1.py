@@ -245,12 +245,18 @@ def cosine_similarity(x, y):
     (20 pts)
     """
     ##################################
-    ### TODO: Add code here ########## (Daniel Chen)
+    ### TODO: Add code here ########## (Daniel Chen: Done on 01/26/2025)
     ##################################
-    pass
+    dot_product = np.dot(x, y)
+    norm_x = np.linalg.norm(x)
+    norm_y = np.linalg.norm(y)
+    cos_similarity = dot_product / (norm_x * norm_y)
+    exp_cos_similarity = np.exp(cos_similarity)
+    return exp_cos_similarity
     
 # Task II: Average Glove Embedding Calculation
-def averaged_glove_embeddings_gdrive(sentence, word_index_dict, embeddings, model_type=50):
+# def averaged_glove_embeddings_gdrive(sentence, word_index_dict, embeddings, model_type=50): # original code is wrong
+def averaged_glove_embeddings_gdrive(sentence, word_index_dict, embeddings, model_type="50d"):
     """
     Get averaged glove embeddings for a sentence
     1. Split sentence into words
@@ -315,17 +321,24 @@ def get_sorted_cosine_similarity(embeddings_metadata):
             input_embedding = get_sentence_transformer_embeddings(st.session_state.text_search)
 
     # Both Glove and transformer methods need to compute cosine similarity
-    for index in range(len(categories)):
-        pass
-        ##########################################
-        # TODO: Compute cosine similarity between input sentence and categories (Daniel Chen)
-        # Use input_embedding and category_embeddings(which is loaded from session_state)
-        # TODO: Update category embeddings if category not found (Daniel Chen)
-        # Coz category_embeddings loaded from session_state, categories[index] may not in category_embeddings, update it
-        ##########################################
+    # for index in range(len(categories)):
+    # pass
+    ##########################################
+    # TODO: Compute cosine similarity between input sentence and categories (Daniel Chen: Done on 01/27/2025)
+    # Use input_embedding and category_embeddings(which is loaded from session_state)
+    # TODO: Update category embeddings if category not found (Daniel Chen: Done on 01/27/2025)
+    # Coz category_embeddings loaded from session_state, categories[index] may not in category_embeddings, update it
+    ##########################################
+        
+    for category in categories:
+        if category not in category_embeddings:
+            update_category_embeddings(embeddings_metadata)
 
-    # TODO: Sort similarity (Tianyi Li)
-    return 
+        cosine_sim[category] = cosine_similarity(input_embedding, category_embeddings[category])
+
+    # TODO: Sort similarity (Daniel Chen: Done on 01/27/2025)
+    sorted_cosine_sim = sorted(cosine_sim.items(), key=lambda x: x[1], reverse=True)
+    return sorted_cosine_sim
 
 
 ### Below is the main function, creating the app demo for text search engine using the text embeddings.
