@@ -1,3 +1,13 @@
 # ignore data and model files
 *.pkl
 *.npy
+*.txt
+
+# Ignore downstream/output files
+*.pdf
+*.zip
+*.ipynb
+
+# (Optional) Ignore hidden system files (Mac & Jupyter)
+.DS_Store
+.ipynb_checkpoints/
