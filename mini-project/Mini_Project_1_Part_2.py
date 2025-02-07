@@ -9,6 +9,12 @@ from datasets import load_dataset
 
 import gdown
 import os
+import random
+import torch
+from torch.utils.data import DataLoader
+
+from sympy import false
+
 
 class TextSimilarityModel:
     def __init__(self, corpus_name, rel_name, model_name='all-MiniLM-L6-v2', top_k=10):
@@ -23,6 +29,7 @@ class TextSimilarityModel:
         ### Add Init
         self.query_id_to_ranked_doc_ids = {}
         self.glove_embedding_dict = {}
+        self.add_negative = False
 
         ###
         self.load_data()
@@ -73,9 +80,16 @@ class TextSimilarityModel:
                 self.train_query_id_to_relevant_doc_ids[qid].append(doc_id)
         
         # Filter queries and documents and build relevant queries and documents mapping based on validation set  
-        #TODO Put your code here. 
+        #TODO Put your code here. Done by Tianyi Li on 02/06/2025
          ###########################################################################
-       
+        # Build relevant queries and documents mapping based on validation set
+        validate_qrels = load_dataset(self.rel_name)["validation"]
+        self.validate_query_id_to_relevant_doc_ids = {qid: [] for qid in validate_qrels["query-id"]}
+
+        for qid, doc_id in zip(validate_qrels["query-id"], validate_qrels["corpus-id"]):
+            if qid in self.validate_query_id_to_relevant_doc_ids:
+                # Append the document ID to the relevant doc mapping
+                self.validate_query_id_to_relevant_doc_ids[qid].append(doc_id)
         ###########################################################################
 
     def load_glove_embeddings(self, glove_path) -> None :
@@ -154,10 +168,10 @@ class TextSimilarityModel:
         query_embeddings = np.array(query_embeddings)
         document_embeddings = np.array(document_embeddings)
         cosine_similarities = cosine_similarity(query_embeddings,document_embeddings)
-        for i in range(len(self.query_ids)):
-            sorted_indices = np.argsort(cosine_similarities[i])[::-1]
-            ranked_doc_ids = [self.document_ids[j] for j in sorted_indices]
-            self.query_id_to_ranked_doc_ids[self.query_ids[i]] = ranked_doc_ids
+        for query_id, similarity_scores in zip(self.query_ids, cosine_similarities):
+            sorted_indices = np.argsort(similarity_scores)[::-1][:self.top_k]  # Sort in descending order
+            ranked_doc_ids = [self.document_ids[idx] for idx in sorted_indices]  # Map indices to document IDs
+            self.query_id_to_ranked_doc_ids[query_id] = ranked_doc_ids
         ###########################################################################
 
     @staticmethod
@@ -193,9 +207,17 @@ class TextSimilarityModel:
         reference: https://www.evidentlyai.com/ranking-metrics/mean-average-precision-map
         https://towardsdatascience.com/map-mean-average-precision-might-confuse-you-5956f1bfa9e2
         """
-         #TODO Put your code here. 
+         #TODO Put your code here. Done by DanieL Chen on 02/06/2025
         ###########################################################################
+        average_precisions = [] # Create an empty list average_precisions to store the AP of each query
+
+        for qid in self.test_query_ids:
+            relevant_docs = self.test_query_id_to_relevant_doc_ids[qid]
+            ranked_docs = self.query_id_to_ranked_doc_ids[qid]
+            average_precisions.append(self.average_precision(relevant_docs, ranked_docs))
         
+        return np.mean(average_precisions) if average_precisions else 0.0
+                    
         ###########################################################################
     
     #Task 4: Ranking the Top 10 Documents based on Similarity Scores (10 Pts)
@@ -213,11 +235,21 @@ class TextSimilarityModel:
         (2) prints the top 10 results along with its similarity score.
         
         """
-        #TODO Put your code here. 
-        query_embedding = self.model.encode(example_query)
+        #TODO Put your code here. Done by DanieL Chen on 02/06/2025
+        # query_embedding = self.model.encode(example_query) 
+        query_embedding = self.model.encode([example_query])[0] # encode() requires a List format
         document_embeddings = self.model.encode(self.documents)
         ###########################################################################
-      
+        cosine_similarities = cosine_similarity([query_embedding], document_embeddings)[0]
+        sorted_indices = np.argsort(cosine_similarities)[::-1][:10]
+        ranked_docs = [(self.documents[i], cosine_similarities[i]) for i in sorted_indices]
+        
+        print(f"Top 10 documents for query: {example_query}\n")
+        
+        for i, (doc, score) in enumerate(ranked_docs, 1):
+            print(f"{i}. Score: {score:.4f}, Document: {doc}")
+
+
         ###########################################################################
       
     #Task 5:Fine tune the sentence transformer model (25 Pts)
@@ -237,7 +269,28 @@ class TextSimilarityModel:
         """
         #TODO Put your code here.
         ###########################################################################
+        self.add_negative = True
+        train_examples = self.prepare_training_examples()
 
+        train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=batch_size)
+
+        train_loss = losses.MultipleNegativesRankingLoss(self.model)
+
+        for name, param in self.model.named_parameters():
+            if 'encoder' in name:  # Freeze all encoder layers
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+        self.model.train()
+
+        self.model.fit(
+            train_objectives=[(train_dataloader, train_loss)],
+            epochs=num_epochs,
+            warmup_steps=int(0.1 * len(train_dataloader)),  # 预热步骤
+            show_progress_bar=True
+        )
+
+        self.model.save(save_model_path)
         ###########################################################################
 
     # Take a careful look into how the training set is created
@@ -254,50 +307,56 @@ class TextSimilarityModel:
         """
         train_examples = []
         for qid, doc_ids in self.train_query_id_to_relevant_doc_ids.items():
+            negative_candidates = list(set(self.document_ids) - set(doc_ids))
             for doc_id in doc_ids:
                 anchor = self.query_id_to_text[qid]
                 positive = self.document_id_to_text[doc_id]
                 # TODO: Select random negative examples that are not relevant to the query.
                 # TODO: Create list[InputExample] of type [anchor, positive, negative]
-                
-                train_examples.append(InputExample(texts=[anchor, positive]))
+                if self.add_negative:
+                    negative_id = random.choice(negative_candidates)
+                    negative = self.document_id_to_text[negative_id]
+                    train_examples.append(InputExample(texts=[anchor, positive, negative]))
+                else:
+                    train_examples.append(InputExample(texts=[anchor, positive]))
+                # train_examples.append(InputExample(texts=[anchor, positive]))
 
         return train_examples
 
-
+# 0. Login to huggingface
 login()
 
+# 1. Initialize the model
 # Initialize and use the model
 model = TextSimilarityModel("BeIR/nfcorpus", "BeIR/nfcorpus-qrels")
 
+# 2. Rank documents using sentence transformer
 # Compare the outputs 
 print("Ranking with sentence_transformer...")
 model.rank_documents(encoding_method='sentence_transformer')
 map_score = model.mean_average_precision()
 print("Mean Average Precision:", map_score)
 
-# Download glove txt
-glove_file_path = 'glove.6B.50d.txt'
-embeddings_id = "1sX7UOmk8dGQfGhe8s1qOyN10XvL-8qHx"
 
-if not os.path.exists(glove_file_path):
-    print("Donwloading embedings...\n\n")
-    gdown.download(id=embeddings_id, output=glove_file_path, quiet=False)
-
-# Compare the outputs 
-print("Ranking with glove...")
-model.rank_documents(encoding_method='glove')
-map_score = model.mean_average_precision()
-print("Mean Average Precision:", map_score)
-
-model.show_ranking_documents("Breast Cancer Cells Feed on Cholesterol")
+# # 3. Rank documents using glove
+# # Download glove txt
+# glove_file_path = 'glove.6B.50d.txt'
+# embeddings_id = "1sX7UOmk8dGQfGhe8s1qOyN10XvL-8qHx"
+# if not os.path.exists(glove_file_path):
+#     print("Donwloading embedings...\n\n")
+#     gdown.download(id=embeddings_id, output=glove_file_path, quiet=False)
+# # Compare the outputs
+# print("Ranking with glove...")
+# model.rank_documents(encoding_method='glove')
+# map_score = model.mean_average_precision()
+# print("Mean Average Precision:", map_score)
 
 
+# # 4. show top_k rankings using sentence transformer
+# model.show_ranking_documents("Breast Cancer Cells Feed on Cholesterol")
 
-
-# Finetune all-MiniLM-L6-v2 sentence transformer model
+# 5. Finetune all-MiniLM-L6-v2 sentence transformer model
 model.fine_tune_model(batch_size=32, num_epochs=10, save_model_path="finetuned_senBERT_train_v2")  # Adjust batch size and epochs as needed
-
 model.rank_documents()
 map_score = model.mean_average_precision()
 print("Mean Average Precision:", map_score)
