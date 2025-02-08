@@ -16,12 +16,15 @@ from torch.utils.data import DataLoader
 from sympy import false
 
 
+# Create your API token from your Hugging Face Account. Make sure to save it in text file or notepad for future use.
+# Will need to add it once per section
 class TextSimilarityModel:
     def __init__(self, corpus_name, rel_name, model_name='all-MiniLM-L6-v2', top_k=10):
         """
         Initialize the model with datasets and pre-trained sentence transformer.
         """
         self.model = SentenceTransformer(model_name)
+        # "/content/finetuned_senBERT_train_v2" model_name
         self.corpus_name = corpus_name
         self.rel_name = rel_name
         self.top_k = top_k
@@ -49,7 +52,7 @@ class TextSimilarityModel:
         self.documents = dataset_docs["corpus"]["text"]
         self.document_ids = dataset_docs["corpus"]["_id"]
 
-                
+
         # Filter queries and documents and build relevant queries and documents mapping based on test set
         test_qrels = load_dataset(self.rel_name)["test"]
         self.filtered_test_query_ids = set(test_qrels["query-id"])
@@ -64,8 +67,8 @@ class TextSimilarityModel:
         for qid, doc_id in zip(test_qrels["query-id"], test_qrels["corpus-id"]):
             if qid in self.test_query_id_to_relevant_doc_ids:
                 self.test_query_id_to_relevant_doc_ids[qid].append(doc_id)
-                
-        ## Code Below this is used for creating the training set 
+
+        ## Code Below this is used for creating the training set
         # Build query and document id to text mapping
         self.query_id_to_text = {query_id:query for query_id, query in zip(self.query_ids, self.queries)}
         self.document_id_to_text = {document_id:document for document_id, document in zip(self.document_ids, self.documents)}
@@ -78,8 +81,8 @@ class TextSimilarityModel:
             if qid in self.train_query_id_to_relevant_doc_ids:
                 # Append the document ID to the relevant doc mapping
                 self.train_query_id_to_relevant_doc_ids[qid].append(doc_id)
-        
-        # Filter queries and documents and build relevant queries and documents mapping based on validation set  
+
+        # Filter queries and documents and build relevant queries and documents mapping based on validation set
         #TODO Put your code here. Done by Tianyi Li on 02/06/2025
          ###########################################################################
         # Build relevant queries and documents mapping based on validation set
@@ -109,11 +112,11 @@ class TextSimilarityModel:
             - sentences (list[str]): A list of sentences to encode.
 
         # Output:
-            - list[np.ndarray]: A list of sentence embeddings 
-            
+            - list[np.ndarray]: A list of sentence embeddings
+
         (1) Encodes sentences by averaging GloVe 50d vectors of words in each sentence.
         (2) Return a sequence of embeddings of the sentences.
-        Download the glove vectors from here. 
+        Download the glove vectors from here.
         https://nlp.stanford.edu/data/glove.6B.zip
         Handle unknown words by using zero vectors
         """
@@ -137,18 +140,18 @@ class TextSimilarityModel:
         ###########################################################################
 
     #Task 2: Calculate Cosine Similarity and Rank Documents (20 Pts)
-    
+
     def rank_documents(self, encoding_method: str = 'sentence_transformer') -> None:
         """
          # Inputs:
-            - encoding_method (str): The method used for encoding queries/documents. 
+            - encoding_method (str): The method used for encoding queries/documents.
                              Options: ['glove', 'sentence_transformer'].
 
         # Output:
             - None (updates self.query_id_to_ranked_doc_ids with ranked document IDs).
-    
+
         (1) Compute cosine similarity between each document and the query
-        (2) Rank documents for each query and save the results in a dictionary "query_id_to_ranked_doc_ids" 
+        (2) Rank documents for each query and save the results in a dictionary "query_id_to_ranked_doc_ids"
             This will be used in "mean_average_precision"
             Example format {2: [125, 673], 35: [900, 822]}
         """
@@ -160,7 +163,7 @@ class TextSimilarityModel:
             document_embeddings = self.model.encode(self.documents)
         else:
             raise ValueError("Invalid encoding method. Choose 'glove' or 'sentence_transformer'.")
-        
+
         #TODO Put your code here. Done by Tianyi Li on 02/05/2025
         ###########################################################################
          # define a dictionary to store the ranked documents for each query
@@ -183,7 +186,7 @@ class TextSimilarityModel:
 
         # Output:
             - float: The average precision score
-    
+
         Compute average precision for a single query.
         """
         y_true = [1 if doc_id in relevant_docs else 0 for doc_id in candidate_docs]
@@ -191,7 +194,7 @@ class TextSimilarityModel:
         return np.mean(precisions) if precisions else 0
 
     #Task 3: Calculate Evaluate System Performance (10 Pts)
-    
+
     def mean_average_precision(self) -> float:
         """
         # Inputs:
@@ -199,11 +202,11 @@ class TextSimilarityModel:
 
         # Output:
             - float: The MAP score, computed as the mean of all average precision scores.
-    
+
         (1) Compute mean average precision for all queries using the "average_precision" function.
         (2) Compute the mean of all average precision scores
         Return the mean average precision score
-        
+
         reference: https://www.evidentlyai.com/ranking-metrics/mean-average-precision-map
         https://towardsdatascience.com/map-mean-average-precision-might-confuse-you-5956f1bfa9e2
         """
@@ -215,47 +218,47 @@ class TextSimilarityModel:
             relevant_docs = self.test_query_id_to_relevant_doc_ids[qid]
             ranked_docs = self.query_id_to_ranked_doc_ids[qid]
             average_precisions.append(self.average_precision(relevant_docs, ranked_docs))
-        
+
         return np.mean(average_precisions) if average_precisions else 0.0
-                    
+
         ###########################################################################
-    
+
     #Task 4: Ranking the Top 10 Documents based on Similarity Scores (10 Pts)
-   
+
     def show_ranking_documents(self, example_query: str) -> None:
-        
+
         """
         # Inputs:
             - example_query (str): A query string for which top-ranked documents should be displayed.
 
         # Output:
             - None (prints the ranked documents along with similarity scores).
-        
+
         (1) rank documents with given query with cosine similarity scores
         (2) prints the top 10 results along with its similarity score.
-        
+
         """
         #TODO Put your code here. Done by DanieL Chen on 02/06/2025
-        # query_embedding = self.model.encode(example_query) 
+        # query_embedding = self.model.encode(example_query)
         query_embedding = self.model.encode([example_query])[0] # encode() requires a List format
         document_embeddings = self.model.encode(self.documents)
         ###########################################################################
         cosine_similarities = cosine_similarity([query_embedding], document_embeddings)[0]
         sorted_indices = np.argsort(cosine_similarities)[::-1][:10]
         ranked_docs = [(self.documents[i], cosine_similarities[i]) for i in sorted_indices]
-        
+
         print(f"Top 10 documents for query: {example_query}\n")
-        
+
         for i, (doc, score) in enumerate(ranked_docs, 1):
             print(f"{i}. Score: {score:.4f}, Document: {doc}")
 
 
         ###########################################################################
-      
+
     #Task 5:Fine tune the sentence transformer model (25 Pts)
-    # Students are not graded on achieving a high MAP score. 
+    # Students are not graded on achieving a high MAP score.
     # The key is to show understanding, experimentation, and thoughtful analysis.
-    
+
     def fine_tune_model(self, batch_size: int = 32, num_epochs: int = 3, save_model_path: str = "finetuned_senBERT") -> None:
 
         """
@@ -277,17 +280,19 @@ class TextSimilarityModel:
         train_loss = losses.MultipleNegativesRankingLoss(self.model)
 
         for name, param in self.model.named_parameters():
-            if 'encoder' in name:  # Freeze all encoder layers
-                param.requires_grad = False
-            else:
-                param.requires_grad = True
-        self.model.train()
+          if "encoder.layer.5" in name or "pooler" in name:  
+              param.requires_grad = True
+          else:
+              param.requires_grad = False
+        trainable_params = [name for name, param in self.model.named_parameters() if param.requires_grad]
+        print("Trainable parameters:", trainable_params)
 
+        self.model.train()
         self.model.fit(
             train_objectives=[(train_dataloader, train_loss)],
             epochs=num_epochs,
-            warmup_steps=int(0.1 * len(train_dataloader)),  # 预热步骤
-            show_progress_bar=True
+            show_progress_bar=True,
+            optimizer_params={'lr': 5e-5}
         )
 
         self.model.save(save_model_path)
@@ -303,7 +308,7 @@ class TextSimilarityModel:
 
          # Output:
             Output: - list[InputExample]: A list of training samples containing [anchor, positive] or [anchor, positive, negative].
-            
+
         """
         train_examples = []
         for qid, doc_ids in self.train_query_id_to_relevant_doc_ids.items():
@@ -353,10 +358,11 @@ print("Mean Average Precision:", map_score)
 
 
 # # 4. show top_k rankings using sentence transformer
-# model.show_ranking_documents("Breast Cancer Cells Feed on Cholesterol")
+model.show_ranking_documents("Breast Cancer Cells Feed on Cholesterol")
 
 # 5. Finetune all-MiniLM-L6-v2 sentence transformer model
-model.fine_tune_model(batch_size=32, num_epochs=10, save_model_path="finetuned_senBERT_train_v2")  # Adjust batch size and epochs as needed
+model.fine_tune_model(batch_size=32, num_epochs=3, save_model_path="finetuned_senBERT_train_v2")  # Adjust batch size and epochs as needed
 model.rank_documents()
 map_score = model.mean_average_precision()
 print("Mean Average Precision:", map_score)
+model.show_ranking_documents("Breast Cancer Cells Feed on Cholesterol")
